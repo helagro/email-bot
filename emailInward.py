@@ -3,8 +3,17 @@ import imaplib
 import email
 from email.header import decode_header
 import credentials
+import threading
+import time
 
 imap = imaplib.IMAP4_SSL("imap.gmail.com")
+refreshDelay = 300
+shouldListenForEmails = False
+
+
+def stopListeningForEmails():
+    global shouldListenForEmails
+    shouldListenForEmails = False
 
 
 def getEmailBodyString(msg):
@@ -56,32 +65,32 @@ def getEmailMessages(emailAccessors):
             message = getEmailMessage(emailIndex)
             messages.append(message)
 
-    print(messages)
-
+    return messages
 
 def getNewEmails():
     inboxResCode, latestEmailAccessor = imap.select("INBOX")
     return imap.search(None, '(UNSEEN)')
     #return inboxResCode, latestEmailAccessor
 
-
 def getAndParseEmails():
     resCode, newEmailAccessors = getNewEmails()
-    getEmailMessages(newEmailAccessors)
-
+    return getEmailMessages(newEmailAccessors)
 
 def reloadMailbox():
-    getAndParseEmails()
+    messages = getAndParseEmails()
+    print("inbox:", messages)
+
+
+def listenForEmailsLoop():
+    while shouldListenForEmails:
+        reloadMailbox()
+        time.sleep(refreshDelay)
+
+def startListeningForEmails():
+    global shouldListenForEmails
+    shouldListenForEmails = True
+    threading.Thread(target=listenForEmailsLoop, group=None).start()
+
 
 def setup():
     imap.login(credentials.username, credentials.password)
-
-
-    
-
-
-
-
-def clean(text):
-    # clean text for creating a folder
-    return "".join(c if c.isalnum() else "_" for c in text)
