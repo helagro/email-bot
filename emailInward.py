@@ -2,41 +2,50 @@ from email import message
 import imaplib
 import email
 from email.header import decode_header
-import webbrowser
-import os
 import credentials
 
 imap = imaplib.IMAP4_SSL("imap.gmail.com")
 
 
-def emailToMap(emailMessage):
+def getEmailBodyString(msg):
+    if msg.is_multipart():
+        for part in msg.walk():
+            content_type = part.get_content_type()
+            try:
+                body = part.get_payload(decode=True).decode()
+            except:
+                pass
+            if content_type == "text/plain":
+                return body
+    else:
+        content_type = msg.get_content_type()
+        body = msg.get_payload(decode=True).decode()
+        if content_type == "text/plain":
+            return body
+        if content_type == "text/html":
+            pass
+
+def getMessageItemAsString(name, msg):
+    item, encoding = decode_header(msg[name])[0]
+    if isinstance(item, bytes):
+        return item.decode(encoding)
+    return item
+
+def emailToMap(msg):
     emailMap = {}
 
+    emailMap["subject"] = getMessageItemAsString("Subject", msg)
+    emailMap["from"] = getMessageItemAsString("From", msg)
+    emailMap["body"] = getEmailBodyString(msg)
 
-    if emailMessage.is_multipart():
-        for payload in emailMessage.get_payload():
-            print (payload.get_payload())
-    else:
-        print (emailMessage.get_payload())
-
-    #emailMap["message"]
-    emailMap["from"] = emailMessage['From']
-    emailMap["subject"] = emailMessage['Subject']
-
-    #print("clips", emailMap["message"].as_string())
-    print("eno", emailMap)
-    #typ, data = imap.store(num,'+FLAGS','\\Seen')
     return emailMap
-
 
 def getEmailMessage(emailIndex):
     resCode, data = imap.fetch(emailIndex,'(RFC822)')
     for response_part in data:
         if isinstance(response_part, tuple):
+            typ, data = imap.store(emailIndex,'+FLAGS','\\Seen')
             return emailToMap(email.message_from_bytes(response_part[1]))
-
-
-
 
 
 def getEmailMessages(emailAccessors):   
@@ -47,11 +56,13 @@ def getEmailMessages(emailAccessors):
             message = getEmailMessage(emailIndex)
             messages.append(message)
 
+    print(messages)
+
 
 def getNewEmails():
     inboxResCode, latestEmailAccessor = imap.select("INBOX")
-    #return imap.search(None, '(UNSEEN)')
-    return inboxResCode, latestEmailAccessor
+    return imap.search(None, '(UNSEEN)')
+    #return inboxResCode, latestEmailAccessor
 
 
 def getAndParseEmails():
